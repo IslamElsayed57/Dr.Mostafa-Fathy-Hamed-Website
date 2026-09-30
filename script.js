@@ -266,18 +266,17 @@ function renderCategoryNav() {
         const icon = categoryIconMap[cat.slug] || "fa-layer-group";
 
         const subcatGridHtml = subcats.map(s => `
-            <a href="javascript:void(0)" class="subcat-link"
-                onclick="filterBySubcategoryId('${cat.slug}', '${s.id}', '${(s.name_ar || "").replace(/'/g, "\\'")}')">
-                <i class="fa-solid ${s.icon || 'fa-pills'}"></i>
-                <div><strong>${s.name_ar}</strong></div>
+            <a href="#" class="subcat-link" data-category="${escHtml(cat.slug)}" data-subcategory-id="${escHtml(s.id)}" data-subcategory-name="${escHtml(s.name_ar || "")}">
+                <i class="fa-solid ${escHtml(s.icon || 'fa-pills')}"></i>
+                <div><strong>${escHtml(s.name_ar)}</strong></div>
             </a>
         `).join("");
 
         return `
             <div class="cat-item-wrapper">
-                <button class="cat-pill" data-category="${cat.slug}" onclick="filterProductsByCategory('${cat.slug}')">
+                <button class="cat-pill" data-category="${escHtml(cat.slug)}">
                     <i class="fa-solid ${icon}"></i>
-                    <span>${cat.name_ar}</span>
+                    <span>${escHtml(cat.name_ar)}</span>
                     ${subcats.length > 0 ? '<i class="fa-solid fa-chevron-down pill-chevron"></i>' : ""}
                 </button>
                 ${subcats.length > 0 ? `
@@ -291,6 +290,15 @@ function renderCategoryNav() {
     nav.innerHTML = "";
     if (allPillWrapper) nav.appendChild(allPillWrapper);
     nav.insertAdjacentHTML("beforeend", generatedHtml);
+    nav.querySelectorAll(".cat-pill").forEach(button => {
+        button.addEventListener("click", () => filterProductsByCategory(button.dataset.category));
+    });
+    nav.querySelectorAll(".subcat-link").forEach(link => {
+        link.addEventListener("click", event => {
+            event.preventDefault();
+            filterBySubcategoryId(link.dataset.category, link.dataset.subcategoryId, link.dataset.subcategoryName);
+        });
+    });
 }
 
 /**
@@ -308,7 +316,7 @@ function renderSearchCategorySelect() {
     const previousValue = select.value || "all";
 
     const optionsHtml = CATEGORIES_DATA.map(cat =>
-        `<option value="${cat.slug}">${cat.name_ar}</option>`
+        `<option value="${escHtml(cat.slug)}">${escHtml(cat.name_ar)}</option>`
     ).join("");
 
     select.innerHTML = `<option value="all">كل الفئات</option>${optionsHtml}`;
@@ -809,27 +817,27 @@ function renderProductsCatalog() {
         grid.innerHTML = filtered.map(product => {
             const badgeClass = product.badgeType === "discount" ? "badge-discount" : "badge-official";
             const oldPriceHtml = product.oldPrice ? `<span class="old-price">${product.oldPrice.toFixed(2)} ج.م</span>` : "";
-            const badgeHtml = product.badge ? `<span class="product-badge-tag ${badgeClass}">${product.badge}</span>` : "";
+            const badgeHtml = product.badge ? `<span class="product-badge-tag ${badgeClass}">${escHtml(product.badge)}</span>` : "";
             const imageHtml = product.imageUrl
-                ? `<img src="${product.imageUrl}" alt="${product.nameAr}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`
-                : `<i class="fa-solid ${product.icon}"></i>`;
+                ? `<img src="${escHtml(product.imageUrl)}" alt="${escHtml(product.nameAr)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`
+                : `<i class="fa-solid ${escHtml(product.icon)}"></i>`;
 
             return `
-                <div class="product-card" data-id="${product.id}">
+                <div class="product-card" data-id="${escHtml(product.id)}">
                     ${badgeHtml}
                     <div class="product-img-wrap">
                         ${imageHtml}
                     </div>
-                    <span class="product-cat-name">${product.categoryName}</span>
-                    <h4 class="product-name">${product.nameAr}</h4>
-                    <span class="product-en-name">${product.nameEn}</span>
+                    <span class="product-cat-name">${escHtml(product.categoryName)}</span>
+                    <h4 class="product-name">${escHtml(product.nameAr)}</h4>
+                    <span class="product-en-name">${escHtml(product.nameEn)}</span>
                     
                     <div class="product-price-row">
                         <span class="current-price">${product.price.toFixed(2)} ج.م</span>
                         ${oldPriceHtml}
                     </div>
 
-                    <button class="btn-add-order" onclick="addToCart('${product.id}')">
+                    <button class="btn-add-order" onclick="addToCart('${escHtml(product.id)}')">
                         <i class="fa-solid fa-cart-plus"></i>
                         <span>إضافة للطلب</span>
                     </button>
@@ -858,7 +866,9 @@ function filterProductsByCategory(category) {
     // fade transition), NOT display — so those are the properties that
     // must be toggled inline to override the :hover-only CSS rule, which
     // never fires on a touch device.
-    const clickedWrapper = document.querySelector(`.cat-item-wrapper .cat-pill[data-category="${category}"]`)?.closest(".cat-item-wrapper");
+    const clickedWrapper = [...document.querySelectorAll(".cat-item-wrapper .cat-pill")]
+        .find(pill => pill.dataset.category === category)
+        ?.closest(".cat-item-wrapper");
     const clickedMenu = clickedWrapper?.querySelector(".subcat-dropdown-menu");
     const isCurrentlyOpen = clickedMenu && clickedMenu.style.visibility === "visible";
 
@@ -988,12 +998,12 @@ function setupGlobalSearchListeners() {
 
             if (matches.length > 0) {
                 dropdownList.innerHTML = matches.slice(0, 6).map(p => `
-                    <div class="search-dropdown-item" onclick="selectSearchItem('${p.id}')">
+                    <div class="search-dropdown-item" onclick="selectSearchItem('${escHtml(p.id)}')">
                         <div class="search-item-info">
-                            <div class="search-item-icon"><i class="fa-solid ${p.icon}"></i></div>
+                            <div class="search-item-icon"><i class="fa-solid ${escHtml(p.icon)}"></i></div>
                             <div>
-                                <div class="search-item-title">${p.nameAr}</div>
-                                <div class="search-item-category">${p.categoryName} - ${p.nameEn}</div>
+                                <div class="search-item-title">${escHtml(p.nameAr)}</div>
+                                <div class="search-item-category">${escHtml(p.categoryName)} - ${escHtml(p.nameEn)}</div>
                             </div>
                         </div>
                         <div class="search-item-price">${p.price.toFixed(2)} ج.م</div>
@@ -1003,7 +1013,7 @@ function setupGlobalSearchListeners() {
             } else {
                 dropdownList.innerHTML = `
                     <div style="padding: 1.5rem; text-align: center; color: #6B584A;">
-                        لا توجد نتائج مطابقة لـ "<strong>${e.target.value}</strong>"<br>
+                        لا توجد نتائج مطابقة لـ "<strong>${escHtml(e.target.value)}</strong>"<br>
                         <button class="btn btn-link" style="margin-top: 0.5rem;" onclick="openPrescriptionModal()">طلب توفير هذا الدواء</button>
                     </div>
                 `;
@@ -1138,14 +1148,14 @@ function updateCartUI() {
         cartList.innerHTML = state.cart.map(item => `
             <div class="cart-item">
                 <div class="cart-item-details">
-                    <h5>${item.nameAr}</h5>
+                    <h5>${escHtml(item.nameAr)}</h5>
                     <div class="cart-item-price">${(item.price * item.quantity).toFixed(2)} ج.م (${item.price.toFixed(2)} ج.م للواحد)</div>
                 </div>
                 <div class="cart-item-actions">
-                    <button class="btn-qty" onclick="updateItemQuantity('${item.id}', -1)">-</button>
+                    <button class="btn-qty" onclick="updateItemQuantity('${escHtml(item.id)}', -1)">-</button>
                     <span style="font-weight: 700; min-width: 20px; text-align: center;">${item.quantity}</span>
-                    <button class="btn-qty" onclick="updateItemQuantity('${item.id}', 1)">+</button>
-                    <button class="btn-qty" style="color: #EF4444;" onclick="removeItemFromCart('${item.id}')" title="حذف"><i class="fa-solid fa-trash"></i></button>
+                    <button class="btn-qty" onclick="updateItemQuantity('${escHtml(item.id)}', 1)">+</button>
+                    <button class="btn-qty" style="color: #EF4444;" onclick="removeItemFromCart('${escHtml(item.id)}')" title="حذف"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </div>
         `).join("");
@@ -1215,7 +1225,7 @@ async function loadDeliveryBranchOptions() {
         if (error) throw error;
 
         const optionsHtml = (branches || [])
-            .map(b => `<option value="${b.id}">${b.name_ar}${b.city ? ` (${formatCityName(b.city)})` : ''}</option>`)
+            .map(b => `<option value="${escHtml(b.id)}">${escHtml(b.name_ar)}${b.city ? ` (${escHtml(formatCityName(b.city))})` : ''}</option>`)
             .join("");
 
         selects.forEach(select => {
@@ -2112,7 +2122,7 @@ function renderDoctorsGrid() {
                         <strong>${doc.fee.toFixed(0)} ج.م</strong>
                         ${followupHtml}
                     </div>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="selectDoctorForBooking('${doc.id}')">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="selectDoctorForBooking('${escHtml(doc.id)}')">
                         <i class="fa-solid fa-calendar-check"></i> احجز هذا الموعد
                     </button>
                 </div>
@@ -2236,7 +2246,7 @@ function populateClinicBranchOptions() {
     }
 
     branchSelect.innerHTML = LIVE_CLINIC_BRANCHES.map(b => `
-        <option value="${b.id}">${b.name_ar}</option>
+        <option value="${escHtml(b.id)}">${escHtml(b.name_ar)}</option>
     `).join("");
 }
 
@@ -2257,7 +2267,7 @@ function populateDoctorOptionsForBranch(branchId, preferredDoctorId) {
     }
 
     docSelect.innerHTML = doctorsInBranch.map(d => `
-        <option value="${d.id}">${d.name} (${d.specialty})</option>
+        <option value="${escHtml(d.id)}">${escHtml(d.name)} (${escHtml(d.specialty)})</option>
     `).join("");
 
     const docToSelect = doctorsInBranch.find(d => d.id === preferredDoctorId) || doctorsInBranch[0];
@@ -2565,20 +2575,20 @@ function renderBranchesForCity(city) {
     if (!branchesContainer) return;
 
     if (branches.length === 0) {
-        branchesContainer.innerHTML = `<p style="color: var(--text-muted);">لا توجد فروع مسجلة في ${city} حالياً.</p>`;
+        branchesContainer.innerHTML = `<p style="color: var(--text-muted);">لا توجد فروع مسجلة في ${escHtml(city)} حالياً.</p>`;
         return;
     }
 
     branchesContainer.innerHTML = branches.map(b => `
         <div class="branch-item-card">
             <h4>
-                <i class="fa-solid fa-hospital" style="color: var(--primary); margin-left: 0.4rem;"></i> ${b.name_ar}
-                <span class="branch-gov-badge" style="background: rgba(16, 185, 129, 0.12); color: var(--primary); font-size: 0.78rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-right: 0.5rem;"><i class="fa-solid fa-location-dot"></i> ${formatCityName(b.city)}</span>
+                <i class="fa-solid fa-hospital" style="color: var(--primary); margin-left: 0.4rem;"></i> ${escHtml(b.name_ar)}
+                <span class="branch-gov-badge" style="background: rgba(16, 185, 129, 0.12); color: var(--primary); font-size: 0.78rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-right: 0.5rem;"><i class="fa-solid fa-location-dot"></i> ${escHtml(formatCityName(b.city))}</span>
             </h4>
-            <p><i class="fa-solid fa-location-dot" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>العنوان:</strong> ${b.address || "غير محدد"}</p>
-            <p><i class="fa-solid fa-phone" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>التليفون:</strong> ${b.phone || "غير محدد"} | <a href="tel:${b.phone || ''}" style="color: var(--primary); font-weight: bold;">اتصال مباشر</a></p>
-            <p><i class="fa-solid fa-clock" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>المواعيد:</strong> ${b.hours || "يومياً من ٨:٠٠ ص إلى ٤:٠٠ فجر"}</p>
-            <p><i class="fa-solid fa-user-doctor" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>مدير الفرع:</strong> ${b.manager || "غير محدد"}</p>
+            <p><i class="fa-solid fa-location-dot" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>العنوان:</strong> ${escHtml(b.address || "غير محدد")}</p>
+            <p><i class="fa-solid fa-phone" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>التليفون:</strong> ${escHtml(b.phone || "غير محدد")} | <a href="tel:${escHtml(String(b.phone || "").replace(/[^+0-9]/g, ""))}" style="color: var(--primary); font-weight: bold;">اتصال مباشر</a></p>
+            <p><i class="fa-solid fa-clock" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>المواعيد:</strong> ${escHtml(b.hours || "يومياً من ٨:٠٠ ص إلى ٤:٠٠ فجر")}</p>
+            <p><i class="fa-solid fa-user-doctor" style="color: var(--text-muted); margin-left: 0.4rem;"></i> <strong>مدير الفرع:</strong> ${escHtml(b.manager || "غير محدد")}</p>
         </div>
     `).join("");
 }
@@ -2592,7 +2602,7 @@ function populatePickupBranchSelects() {
     if (selects.length === 0) return;
 
     const optionsHtml = LIVE_BRANCHES
-        .map(b => `<option value="${b.id}">${b.name_ar} (${formatCityName(b.city)})</option>`)
+        .map(b => `<option value="${escHtml(b.id)}">${escHtml(b.name_ar)} (${escHtml(formatCityName(b.city))})</option>`)
         .join("");
 
     selects.forEach(select => {
@@ -2618,9 +2628,9 @@ function renderDistributionMap() {
         const top = `${20 + row * 32}%`;
         const right = `${15 + col * 30}%`;
         return `
-            <div class="map-pin pin-mansoura" style="top: ${top}; right: ${right};" title="${b.name_ar}">
+            <div class="map-pin pin-mansoura" style="top: ${top}; right: ${right};" title="${escHtml(b.name_ar)}">
                 <i class="fa-solid fa-hospital"></i>
-                <span>${b.name_ar} (${formatCityName(b.city)})</span>
+                <span>${escHtml(b.name_ar)} (${escHtml(formatCityName(b.city))})</span>
             </div>
         `;
     }).join("");
@@ -2629,7 +2639,7 @@ function renderDistributionMap() {
 
     mapContainer.innerHTML = pinsHtml + `
         <div class="map-overlay-text">
-            <p><i class="fa-solid fa-truck-fast"></i> خدمة توصيل تغطي ${cities} والمناطق المجاورة</p>
+            <p><i class="fa-solid fa-truck-fast"></i> خدمة توصيل تغطي ${escHtml(cities)} والمناطق المجاورة</p>
         </div>
     `;
 }
@@ -2660,7 +2670,11 @@ function showToast(message, type = "success") {
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
     const icon = type === "success" ? "fa-circle-check" : "fa-circle-exclamation";
-    toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+    const iconEl = document.createElement("i");
+    iconEl.className = `fa-solid ${icon}`;
+    const messageEl = document.createElement("span");
+    messageEl.textContent = String(message == null ? "" : message);
+    toast.append(iconEl, messageEl);
 
     container.appendChild(toast);
 
