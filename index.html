@@ -416,10 +416,18 @@
                         <input type="text" id="inlineProductSearch" placeholder="بحث سريع في قائمة المنتجات الحالية..."
                             oninput="handleInlineSearch(this.value)">
                     </div>
+
+                    <!-- Discount Filter Toggle Button -->
+                    <button type="button" class="btn-discount-filter" id="btnDiscountFilter" onclick="toggleDiscountFilter()" title="عرض المنتجات التي عليها خصومات وعروض فقط">
+                        <i class="fa-solid fa-percent"></i>
+                        <span>الخصومات والعروض فقط</span>
+                    </button>
+
                     <div class="catalog-sort">
                         <label for="productSortSelect">ترتيب حسب:</label>
                         <select id="productSortSelect" onchange="handleProductSort(this.value)">
                             <option value="featured">الأكثر طلباً وتوصية</option>
+                            <option value="discount">أعلى نسبة خصم</option>
                             <option value="price-asc">السعر: من الأقل للأعلى</option>
                             <option value="price-desc">السعر: من الأعلى للأقل</option>
                             <option value="name">الاسم الأبجدي</option>

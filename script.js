@@ -457,6 +457,7 @@ let state = {
     activeSubcategoryId: null,
     searchQuery: "",
     inlineSearchQuery: "",
+    onlyDiscounts: false,
     sortBy: "featured",
     cart: []
 };
@@ -840,6 +841,14 @@ function renderProductsCatalog() {
             matchSubcategory = item.subcategoryId === state.activeSubcategoryId;
         }
 
+        // Discounts Only Match
+        const matchDiscount = !state.onlyDiscounts || (
+            (item.oldPrice && item.oldPrice > item.price) ||
+            item.badgeType === "discount" ||
+            item.badgeType === "sale" ||
+            (item.badge && (item.badge.includes("خصم") || item.badge.includes("عرض")))
+        );
+
         // Search Match (Global or Inline)
         const activeSearch = (state.searchQuery || state.inlineSearchQuery).trim().toLowerCase();
         const matchSearch = !activeSearch || 
@@ -847,11 +856,17 @@ function renderProductsCatalog() {
             item.nameEn.toLowerCase().includes(activeSearch) ||
             item.categoryName.toLowerCase().includes(activeSearch);
 
-        return matchCategory && matchSubcategory && matchSearch;
+        return matchCategory && matchSubcategory && matchDiscount && matchSearch;
     });
 
     // Sort products
-    if (state.sortBy === "price-asc") {
+    if (state.sortBy === "discount") {
+        filtered.sort((a, b) => {
+            const discA = (a.oldPrice && a.oldPrice > a.price) ? ((a.oldPrice - a.price) / a.oldPrice) : 0;
+            const discB = (b.oldPrice && b.oldPrice > b.price) ? ((b.oldPrice - b.price) / b.oldPrice) : 0;
+            return discB - discA;
+        });
+    } else if (state.sortBy === "price-asc") {
         filtered.sort((a, b) => a.price - b.price);
     } else if (state.sortBy === "price-desc") {
         filtered.sort((a, b) => b.price - a.price);
@@ -872,7 +887,18 @@ function renderProductsCatalog() {
     // Render HTML
     if (totalFiltered === 0) {
         grid.innerHTML = "";
-        if (emptyState) emptyState.style.display = "block";
+        if (emptyState) {
+            emptyState.style.display = "block";
+            const emptyTitle = emptyState.querySelector("h3");
+            const emptyDesc = emptyState.querySelector("p");
+            if (state.onlyDiscounts) {
+                if (emptyTitle) emptyTitle.textContent = "لا توجد منتجات عليها خصومات في هذا القسم حالياً";
+                if (emptyDesc) emptyDesc.innerHTML = `يمكنك إلغاء فلتر الخصومات لتصفح جميع منتجات القسم، أو طلب دواء غير موجود.<br><button type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.85rem;" onclick="toggleDiscountFilter()"><i class="fa-solid fa-xmark"></i> إلغاء فلتر الخصومات وعرض كل المنتجات</button>`;
+            } else {
+                if (emptyTitle) emptyTitle.textContent = "لم نعثر على منتجات مطابقة لبحثك";
+                if (emptyDesc) emptyDesc.innerHTML = `يمكنك كتابة اسم الدواء في نموذج حجز الأدوية وسيقوم فريق الصيدلية بتوفيره لك فوراً.`;
+            }
+        }
         renderCustomerPagination(0, 1, 1);
     } else {
         if (emptyState) emptyState.style.display = "none";
@@ -1009,6 +1035,23 @@ function goToCustomerDirectPage(totalPages) {
         changeCustomerCatalogPage(val);
     } else {
         showToast(`يرجى إدخال رقم صفحة بين 1 و ${totalPages}`, "warning");
+    }
+}
+
+function toggleDiscountFilter() {
+    state.onlyDiscounts = !state.onlyDiscounts;
+    catalogState.page = 1;
+
+    const btn = document.getElementById("btnDiscountFilter");
+    if (btn) {
+        btn.classList.toggle("active", state.onlyDiscounts);
+        btn.setAttribute("aria-pressed", String(state.onlyDiscounts));
+    }
+
+    renderProductsCatalog();
+
+    if (state.onlyDiscounts) {
+        showToast("تم تفعيل فلترة الخصومات والعروض فقط", "info");
     }
 }
 

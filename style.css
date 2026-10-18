@@ -1672,6 +1672,70 @@ body.dark-mode .cat-pill i {
     cursor: pointer;
 }
 
+/* Discount Filter Button */
+.btn-discount-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.1rem;
+    background: var(--bg-alt);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-pill);
+    color: var(--text-main);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.btn-discount-filter i {
+    font-size: 0.95rem;
+    color: #DC2626;
+    transition: transform var(--transition-fast);
+}
+
+.btn-discount-filter:hover {
+    background: #FEE2E2;
+    border-color: #F87171;
+    color: #991B1B;
+}
+
+.btn-discount-filter:hover i {
+    transform: rotate(-15deg) scale(1.1);
+}
+
+.btn-discount-filter.active {
+    background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+    border-color: #B91C1C;
+    color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.btn-discount-filter.active i {
+    color: #FFFFFF;
+    transform: scale(1.15);
+}
+
+body.dark-mode .btn-discount-filter {
+    background: #2B1D14;
+    border-color: #3D2B20;
+    color: #F5EDE7;
+}
+
+body.dark-mode .btn-discount-filter:hover {
+    background: rgba(220, 38, 38, 0.2);
+    border-color: #DC2626;
+    color: #FCA5A5;
+}
+
+body.dark-mode .btn-discount-filter.active {
+    background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+    border-color: #DC2626;
+    color: #FFFFFF;
+}
+
 /* Product Cards Grid */
 .products-grid {
     display: grid;
