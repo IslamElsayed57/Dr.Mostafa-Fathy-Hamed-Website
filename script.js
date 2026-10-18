@@ -355,21 +355,14 @@ async function loadProductsCatalog() {
         renderCategoryNav();
         renderSearchCategorySelect();
 
-        const { data: products, error: prodError } = await supabaseClient
-            .from("products")
-            .select("*")
-            .eq("is_active", true)
-            .order("created_at", { ascending: false });
-
-        if (prodError) throw prodError;
-
-        PRODUCTS_DATA = (products || []).map(p => {
+        function mapProductRow(p) {
             const cat = categoryMap[p.category_id] || {};
             return {
                 id: p.id,
+                categoryId: p.category_id,
                 nameAr: p.name_ar || "",
                 nameEn: p.name_en || "",
-                category: cat.slug || "medicines",
+                category: cat.slug || "",
                 categoryName: cat.name_ar || "",
                 price: Number(p.price) || 0,
                 oldPrice: p.old_price ? Number(p.old_price) : null,
@@ -380,8 +373,59 @@ async function loadProductsCatalog() {
                 inStock: p.in_stock !== false,
                 subcategoryId: p.subcategory_id || null
             };
-        });
+        }
 
+        // 1. Fetch first batch (up to 1000) with total exact count and deterministic sort
+        const firstBatchRes = await supabaseClient
+            .from("products")
+            .select("id, name_ar, name_en, category_id, subcategory_id, price, old_price, badge, badge_type, icon, image_url, in_stock", { count: "exact" })
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(0, 999);
+
+        if (firstBatchRes.error) throw firstBatchRes.error;
+
+        const firstBatch = firstBatchRes.data || [];
+        const totalCount = firstBatchRes.count || firstBatch.length;
+
+        let allRows = [...firstBatch];
+
+        // 2. Fetch all remaining batches deterministically in parallel
+        if (totalCount > 1000) {
+            const promises = [];
+            for (let i = 1000; i < totalCount; i += 1000) {
+                const to = Math.min(i + 999, totalCount - 1);
+                promises.push(
+                    supabaseClient
+                        .from("products")
+                        .select("id, name_ar, name_en, category_id, subcategory_id, price, old_price, badge, badge_type, icon, image_url, in_stock")
+                        .eq("is_active", true)
+                        .order("created_at", { ascending: false })
+                        .order("id", { ascending: true })
+                        .range(i, to)
+                        .then(res => {
+                            if (res.error) throw res.error;
+                            return res.data || [];
+                        })
+                );
+            }
+
+            const chunks = await Promise.all(promises);
+            allRows = allRows.concat(chunks.flat());
+        }
+
+        // Deduplicate rows by ID
+        const seen = new Set();
+        const uniqueProducts = [];
+        for (const r of allRows) {
+            if (!seen.has(r.id)) {
+                seen.add(r.id);
+                uniqueProducts.push(mapProductRow(r));
+            }
+        }
+
+        PRODUCTS_DATA = uniqueProducts;
         renderProductsCatalog();
 
     } catch (err) {
@@ -389,7 +433,7 @@ async function loadProductsCatalog() {
         const grid = document.getElementById("productsCatalogGrid");
         if (grid) {
             grid.innerHTML = `
-                <div style="text-align:center; padding:3rem 1rem; color:#EF4444;">
+                <div style="grid-column: 1/-1; text-align:center; padding:3rem 1rem; color:#EF4444;">
                     <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem; margin-bottom:0.75rem;"></i>
                     <p>تعذر تحميل قائمة الأدوية والمنتجات حالياً. برجاء تحديث الصفحة أو المحاولة لاحقاً.</p>
                 </div>
@@ -772,6 +816,11 @@ function toggleMobileMenu() {
 // --------------------------------------------------------------------------
 // 5. Products Catalog Logic & Nahdi Filtering with Subcategories
 // --------------------------------------------------------------------------
+let catalogState = {
+    page: 1,
+    pageSize: 24
+};
+
 function renderProductsCatalog() {
     const grid = document.getElementById("productsCatalogGrid");
     const emptyState = document.getElementById("emptyProductsState");
@@ -781,7 +830,9 @@ function renderProductsCatalog() {
     // Filter products
     let filtered = PRODUCTS_DATA.filter(item => {
         // Category Match
-        const matchCategory = state.currentCategory === "all" || item.category === state.currentCategory;
+        const matchCategory = state.currentCategory === "all" || 
+            item.category === state.currentCategory || 
+            item.categoryId === state.currentCategory;
         
         // Subcategory Match (real relational match, not keyword guessing)
         let matchSubcategory = true;
@@ -808,13 +859,24 @@ function renderProductsCatalog() {
         filtered.sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar'));
     }
 
+    const totalFiltered = filtered.length;
+    const totalPages = Math.ceil(totalFiltered / catalogState.pageSize) || 1;
+    if (catalogState.page > totalPages) {
+        catalogState.page = 1;
+    }
+    const currentPage = catalogState.page;
+    const fromIndex = (currentPage - 1) * catalogState.pageSize;
+    const toIndex = Math.min(fromIndex + catalogState.pageSize, totalFiltered);
+    const pageItems = filtered.slice(fromIndex, toIndex);
+
     // Render HTML
-    if (filtered.length === 0) {
+    if (totalFiltered === 0) {
         grid.innerHTML = "";
-        emptyState.style.display = "block";
+        if (emptyState) emptyState.style.display = "block";
+        renderCustomerPagination(0, 1, 1);
     } else {
-        emptyState.style.display = "none";
-        grid.innerHTML = filtered.map(product => {
+        if (emptyState) emptyState.style.display = "none";
+        grid.innerHTML = pageItems.map(product => {
             const badgeClass = product.badgeType === "discount" ? "badge-discount" : "badge-official";
             const oldPriceHtml = product.oldPrice ? `<span class="old-price">${product.oldPrice.toFixed(2)} ج.م</span>` : "";
             const badgeHtml = product.badge ? `<span class="product-badge-tag ${badgeClass}">${escHtml(product.badge)}</span>` : "";
@@ -844,10 +906,114 @@ function renderProductsCatalog() {
                 </div>
             `;
         }).join("");
+
+        renderCustomerPagination(totalFiltered, currentPage, totalPages);
+    }
+}
+
+function renderCustomerPagination(totalItems, currentPage, totalPages) {
+    const container = document.getElementById("customerProductsPagination");
+    if (!container) return;
+
+    if (totalItems === 0 || totalPages <= 1) {
+        container.style.display = "none";
+        container.innerHTML = "";
+        return;
+    }
+
+    container.style.display = "flex";
+
+    const startItem = (currentPage - 1) * catalogState.pageSize + 1;
+    const endItem = Math.min(currentPage * catalogState.pageSize, totalItems);
+
+    const pages = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        let leftBound = Math.max(2, currentPage - 2);
+        let rightBound = Math.min(totalPages - 1, currentPage + 2);
+
+        if (currentPage <= 4) {
+            leftBound = 2;
+            rightBound = 5;
+        } else if (currentPage >= totalPages - 3) {
+            leftBound = totalPages - 4;
+            rightBound = totalPages - 1;
+        }
+
+        if (leftBound > 2) pages.push("...");
+        for (let i = leftBound; i <= rightBound; i++) pages.push(i);
+        if (rightBound < totalPages - 1) pages.push("...");
+        pages.push(totalPages);
+    }
+
+    const pageButtonsHtml = pages.map(p => {
+        if (p === "...") {
+            return `<span class="pg-ellipsis">...</span>`;
+        }
+        const isActive = p === currentPage;
+        return `
+            <button type="button" class="pg-btn ${isActive ? 'active' : ''}" 
+                    onclick="changeCustomerCatalogPage(${p})" 
+                    ${isActive ? 'aria-current="page"' : ''}>
+                ${p}
+            </button>
+        `;
+    }).join("");
+
+    container.innerHTML = `
+        <div class="pagination-summary">
+            عرض <strong>${startItem.toLocaleString('ar-EG')}</strong> - <strong>${endItem.toLocaleString('ar-EG')}</strong> من أصل <strong>${totalItems.toLocaleString('ar-EG')}</strong> منتج (صفحة <strong>${currentPage}</strong> من <strong>${totalPages}</strong>)
+        </div>
+        <div class="pagination-buttons">
+            <button type="button" class="pg-btn" ${currentPage <= 1 ? "disabled" : ""} onclick="changeCustomerCatalogPage(1)" title="الصفحة الأولى">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <button type="button" class="pg-btn" ${currentPage <= 1 ? "disabled" : ""} onclick="changeCustomerCatalogPage(${currentPage - 1})" title="الصفحة السابقة">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            ${pageButtonsHtml}
+            <button type="button" class="pg-btn" ${currentPage >= totalPages ? "disabled" : ""} onclick="changeCustomerCatalogPage(${currentPage + 1})" title="الصفحة التالية">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button type="button" class="pg-btn" ${currentPage >= totalPages ? "disabled" : ""} onclick="changeCustomerCatalogPage(${totalPages})" title="الصفحة الأخيرة">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <div class="pg-jump-wrap">
+                <input type="number" min="1" max="${totalPages}" id="customerDirectPageInput" 
+                       placeholder="${currentPage}" class="pg-jump-input"
+                       onkeydown="if(event.key==='Enter') goToCustomerDirectPage(${totalPages})">
+                <button type="button" class="pg-btn" onclick="goToCustomerDirectPage(${totalPages})" title="انتقال">
+                    انتقال
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function changeCustomerCatalogPage(newPage) {
+    catalogState.page = newPage;
+    renderProductsCatalog();
+    const section = document.getElementById("section-products") || document.getElementById("productsCatalogGrid");
+    if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+}
+
+function goToCustomerDirectPage(totalPages) {
+    const input = document.getElementById("customerDirectPageInput");
+    if (!input) return;
+    const val = parseInt(input.value, 10);
+    if (!isNaN(val) && val >= 1 && val <= totalPages) {
+        changeCustomerCatalogPage(val);
+    } else {
+        showToast(`يرجى إدخال رقم صفحة بين 1 و ${totalPages}`, "warning");
     }
 }
 
 function filterProductsByCategory(category) {
+    catalogState.page = 1;
     state.currentCategory = category;
     clearSubcategoryFilter(false);
 
@@ -890,6 +1056,7 @@ function filterProductsByCategory(category) {
 }
 
 function filterBySubcategoryId(parentCategory, subcategoryId, subcategoryTitle) {
+    catalogState.page = 1;
     state.currentCategory = parentCategory;
     state.activeSubcategory = subcategoryTitle;
     state.activeSubcategoryId = subcategoryId;
@@ -927,6 +1094,7 @@ function filterBySubcategoryId(parentCategory, subcategoryId, subcategoryTitle) 
 }
 
 function clearSubcategoryFilter(shouldReRender = true) {
+    catalogState.page = 1;
     state.activeSubcategory = null;
     state.activeSubcategoryId = null;
 
@@ -941,21 +1109,25 @@ function clearSubcategoryFilter(shouldReRender = true) {
 }
 
 function filterBySpecificCategory(category) {
+    catalogState.page = 1;
     switchSection("products");
     filterProductsByCategory(category);
 }
 
 function handleCategoryFilter(category) {
+    catalogState.page = 1;
     switchSection("products");
     filterProductsByCategory(category);
 }
 
 function handleInlineSearch(val) {
+    catalogState.page = 1;
     state.inlineSearchQuery = val;
     renderProductsCatalog();
 }
 
 function handleProductSort(sortBy) {
+    catalogState.page = 1;
     state.sortBy = sortBy;
     renderProductsCatalog();
 }
@@ -1042,6 +1214,7 @@ function clearSearch() {
     if (btnClear) btnClear.style.display = "none";
     if (dropdown) dropdown.classList.remove("active");
     
+    catalogState.page = 1;
     state.searchQuery = "";
     renderProductsCatalog();
 }
@@ -1051,6 +1224,7 @@ function executeSearch() {
     const dropdown = document.getElementById("searchResultsDropdown");
     if (dropdown) dropdown.classList.remove("active");
     
+    catalogState.page = 1;
     switchSection("products");
     renderProductsCatalog();
 }

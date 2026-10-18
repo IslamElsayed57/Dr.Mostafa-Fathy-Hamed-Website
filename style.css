@@ -1807,6 +1807,137 @@ body.dark-mode .cat-pill i {
     margin-bottom: 1rem;
 }
 
+/* Customer Catalog Pagination */
+.customer-catalog-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+    margin-bottom: 3.5rem;
+    padding: 1.25rem 1.5rem;
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.customer-catalog-pagination .pagination-summary {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.customer-catalog-pagination .pagination-summary strong {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.customer-catalog-pagination .pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.customer-catalog-pagination .pg-btn {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: #FFFFFF;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.customer-catalog-pagination .pg-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.customer-catalog-pagination .pg-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #FFFFFF;
+    font-weight: 700;
+    cursor: default;
+}
+
+.customer-catalog-pagination .pg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.customer-catalog-pagination .pg-ellipsis {
+    padding: 0 0.4rem;
+    color: var(--text-light);
+    font-weight: 700;
+}
+
+.customer-catalog-pagination .pg-jump-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-inline-start: 0.6rem;
+}
+
+.customer-catalog-pagination .pg-jump-input {
+    width: 60px;
+    height: 38px;
+    text-align: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: #FFFFFF;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+}
+
+.customer-catalog-pagination .pg-jump-input:focus {
+    border-color: var(--primary);
+}
+
+body.dark-mode .customer-catalog-pagination {
+    background: #1E1712;
+    border-color: #3D2B20;
+}
+
+body.dark-mode .customer-catalog-pagination .pagination-summary {
+    color: #C8BAAF;
+}
+
+body.dark-mode .customer-catalog-pagination .pagination-summary strong {
+    color: #E8B88A;
+}
+
+body.dark-mode .customer-catalog-pagination .pg-btn {
+    background: #2B1D14;
+    border-color: #3D2B20;
+    color: #F5EDE7;
+}
+
+body.dark-mode .customer-catalog-pagination .pg-btn.active {
+    background: #7D5A38;
+    border-color: #7D5A38;
+    color: #FFFFFF;
+}
+
+body.dark-mode .customer-catalog-pagination .pg-jump-input {
+    background: #2B1D14;
+    border-color: #3D2B20;
+    color: #FFFFFF;
+}
+
 /* ==========================================================================
    Comprehensive Medicine Booking Form
    ========================================================================== */
