@@ -1,0 +1,22 @@
+{
+    "name": "صيدلية د.مصطفى فتحي حامد",
+    "short_name": "Dr.Mostafa Fathy",
+    "description": "أدوية ومستحضرات تجميل، توصيل سريع، واستشارات صيدلانية متخصصة",
+    "start_url": "/Dr.Mostafa-Fathy-Hamed-Website/",
+    "scope": "/Dr.Mostafa-Fathy-Hamed-Website/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "theme_color": "#5A3825",
+    "background_color": "#FAF7F4",
+    "lang": "ar",
+    "dir": "rtl",
+    "categories": ["health", "shopping", "medical"],
+    "icons": [
+        {
+            "src": "assets/pharmacy-logo.jpg",
+            "sizes": "any",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        }
+    ]
+}

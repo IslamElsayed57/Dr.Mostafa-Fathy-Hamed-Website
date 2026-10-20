@@ -22,6 +22,15 @@
 
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="style.css?v=20261020-1">
+
+    <!-- ==================== PWA ==================== -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#5A3825">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="صيدلية د.مصطفى">
+    <link rel="apple-touch-icon" href="assets/pharmacy-logo.jpg">
 </head>
 
 <body>
@@ -1281,6 +1290,218 @@
     <!-- Custom Script & Supabase Date -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
     <script src="script.js?v=20261020-1"></script>
+
+    <!-- ==================== PWA: إشعار التحديث ==================== -->
+    <!--
+        يظهر هذا الإشعار فقط عند توفر تحديث حقيقي للموقع (ليس عند أول تثبيت).
+        يحتوي على زرين عربيين: "تحديث الآن" و"لاحقًا".
+        يتحقق من السلة قبل إعادة التحميل لتحذير المستخدم إذا كانت ممتلئة.
+    -->
+    <div
+        id="pwaUpdateBanner"
+        role="alertdialog"
+        aria-live="assertive"
+        aria-label="تحديث متاح للموقع"
+        style="
+            display: none;
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            background: linear-gradient(135deg, #5A3825 0%, #7D5A38 100%);
+            color: #FAF7F4;
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px rgba(90, 56, 37, 0.45), 0 2px 8px rgba(0,0,0,0.18);
+            padding: 1.2rem 1.6rem 1.1rem;
+            max-width: min(92vw, 420px);
+            width: 100%;
+            font-family: 'Cairo', sans-serif;
+            direction: rtl;
+            text-align: center;
+            animation: pwaSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        "
+    >
+        <p style="margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 700; line-height: 1.4;">
+            🔄 تحديث جديد متاح!
+        </p>
+        <p style="margin: 0 0 1rem; font-size: 0.87rem; opacity: 0.88; line-height: 1.65;">
+            يتوفر إصدار جديد من الموقع. حدِّث الآن للاستمتاع بأحدث المميزات.
+        </p>
+        <div style="display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap;">
+            <button
+                id="pwaUpdateNow"
+                style="
+                    background: #FAF7F4;
+                    color: #5A3825;
+                    border: none;
+                    border-radius: 0.6rem;
+                    padding: 0.6rem 1.5rem;
+                    font-family: 'Cairo', sans-serif;
+                    font-size: 0.97rem;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: opacity 0.18s, transform 0.18s;
+                "
+                onmouseover="this.style.opacity='0.85'; this.style.transform='scale(0.97)';"
+                onmouseout="this.style.opacity='1'; this.style.transform='scale(1)';"
+            >
+                تحديث الآن
+            </button>
+            <button
+                id="pwaUpdateLater"
+                style="
+                    background: transparent;
+                    color: #FAF7F4;
+                    border: 2px solid rgba(250, 247, 244, 0.55);
+                    border-radius: 0.6rem;
+                    padding: 0.6rem 1.5rem;
+                    font-family: 'Cairo', sans-serif;
+                    font-size: 0.97rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: opacity 0.18s, transform 0.18s;
+                "
+                onmouseover="this.style.opacity='0.7'; this.style.transform='scale(0.97)';"
+                onmouseout="this.style.opacity='1'; this.style.transform='scale(1)';"
+            >
+                لاحقًا
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes pwaSlideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(24px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+    </style>
+
+    <!-- ==================== PWA: تسجيل Service Worker ==================== -->
+    <script>
+    (function () {
+        'use strict';
+
+        // لا دعم للـ Service Worker في هذا المتصفح — نتوقف هنا
+        if (!('serviceWorker' in navigator)) return;
+
+        var _waitingWorker = null;   // الـ SW الجديد المنتظر التفعيل
+        var _reloadPending = false;  // حارس ضد حلقة reload لا نهائية
+
+        // ── تسجيل الـ Service Worker بعد تحميل الصفحة ────────────────────────
+        window.addEventListener('load', function () {
+
+            navigator.serviceWorker.register(
+                '/Dr.Mostafa-Fathy-Hamed-Website/sw.js',
+                { scope: '/Dr.Mostafa-Fathy-Hamed-Website/' }
+            ).then(function (registration) {
+
+                // حالة: يوجد SW منتظر من قبل (مثلاً بعد رجوع المستخدم للصفحة)
+                if (registration.waiting && navigator.serviceWorker.controller) {
+                    _waitingWorker = registration.waiting;
+                    showUpdateBanner();
+                }
+
+                // مراقبة اكتشاف SW جديد
+                registration.addEventListener('updatefound', function () {
+                    var installing = registration.installing;
+                    if (!installing) return;
+
+                    installing.addEventListener('statechange', function () {
+                        // 'installed' = جاهز للتفعيل بعد موافقة المستخدم
+                        if (installing.state === 'installed') {
+                            // نُظهر الإشعار فقط إذا كان هناك controller سابق
+                            // (= تحديث حقيقي وليس أول تثبيت)
+                            if (navigator.serviceWorker.controller) {
+                                _waitingWorker = installing;
+                                showUpdateBanner();
+                            }
+                        }
+                    });
+                });
+
+            }).catch(function (err) {
+                console.warn('[PWA] فشل تسجيل Service Worker:', err);
+            });
+
+            // عند تغيير الـ controller (بعد SKIP_WAITING) → نعيد التحميل مرة واحدة
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                if (_reloadPending) return;
+                _reloadPending = true;
+                window.location.reload();
+            }, { once: true });
+
+        }); // نهاية window.load
+
+        // ── ربط أزرار الإشعار بعد جاهزية الـ DOM ────────────────────────────
+        document.addEventListener('DOMContentLoaded', function () {
+
+            var btnNow   = document.getElementById('pwaUpdateNow');
+            var btnLater = document.getElementById('pwaUpdateLater');
+
+            // زر "تحديث الآن"
+            if (btnNow) {
+                btnNow.addEventListener('click', function () {
+
+                    // ── حارس 1: السلة غير فارغة ──────────────────────────────
+                    var cartNotEmpty = (
+                        typeof window.state !== 'undefined' &&
+                        Array.isArray(window.state.cart) &&
+                        window.state.cart.length > 0
+                    );
+                    if (cartNotEmpty) {
+                        var proceed = window.confirm(
+                            'سلة الطلبات تحتوي على ' + window.state.cart.length + ' منتج لم يُرسَل بعد.\n' +
+                            'هل تريد التحديث الآن؟ ستُفقَد محتويات السلة.'
+                        );
+                        if (!proceed) return;
+                    }
+
+                    // ── حارس 2: جار إرسال نموذج ──────────────────────────────
+                    var activeSubmit = document.querySelector(
+                        '#btnCartSubmit:disabled, button[type="submit"]:disabled'
+                    );
+                    if (activeSubmit) {
+                        var proceed2 = window.confirm(
+                            'يبدو أن هناك عملية إرسال جارية حالياً.\n' +
+                            'هل تريد التحديث الآن على أي حال؟'
+                        );
+                        if (!proceed2) return;
+                    }
+
+                    // إخفاء الإشعار وإرسال أمر التفعيل للـ SW المنتظر
+                    hideUpdateBanner();
+                    if (_waitingWorker) {
+                        // controllerchange المسجَّل أعلاه سيتولى إعادة التحميل
+                        _waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                });
+            }
+
+            // زر "لاحقًا"
+            if (btnLater) {
+                btnLater.addEventListener('click', function () {
+                    hideUpdateBanner();
+                    // لا نفعِّل الـ SW الجديد ولا نعيد التحميل
+                });
+            }
+
+        }); // نهاية DOMContentLoaded
+
+        // ── دوال مساعدة ───────────────────────────────────────────────────────
+        function showUpdateBanner() {
+            var banner = document.getElementById('pwaUpdateBanner');
+            if (banner) banner.style.display = 'block';
+        }
+
+        function hideUpdateBanner() {
+            var banner = document.getElementById('pwaUpdateBanner');
+            if (banner) banner.style.display = 'none';
+        }
+
+    })();
+    </script>
+
 </body>
 
 </html>
