@@ -13,13 +13,62 @@ const supabaseClient = window.supabase.createClient(
 );
 
 /**
+ * Converts a file (image or pdf) to a compact data URL.
+ * Automatically resizes and compresses images so the payload remains lightweight.
+ */
+function fileToDataUrl(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+    if (!file) return Promise.resolve(null);
+
+    if (file.type === "application/pdf") {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                if (width > maxWidth || height > maxHeight) {
+                    if (width > height) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    } else {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL("image/jpeg", quality));
+            };
+            img.onerror = () => resolve(e.target.result);
+            img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
  * Uploads a prescription file to the "prescriptions" Storage bucket
- * and returns its private object path, or null if no file / upload failed.
- * `seq` keeps generated filenames unique when several files upload at once.
+ * and returns its private object path. If Storage upload is unavailable,
+ * automatically falls back to an embedded Data URL so the customer's
+ * order is NEVER blocked.
  */
 async function uploadPrescriptionFile(file, seq = 0) {
     if (!file) return null;
 
+    // 1. Try native Supabase Storage upload
     try {
         const fileExt = file.name.split(".").pop();
         const safeName = `${Date.now()}_${seq}_${Math.floor(Math.random() * 100000)}.${fileExt}`;
@@ -32,19 +81,24 @@ async function uploadPrescriptionFile(file, seq = 0) {
                 upsert: false
             });
 
-        if (uploadError) {
-            console.error("Prescription upload error:", uploadError);
-            return null;
+        if (!uploadError) {
+            return safeName;
         }
 
-        // The prescriptions bucket is private. Store its object path so staff
-        // can request a short-lived signed URL instead of persisting a public URL.
-        return safeName;
-
+        console.warn("Storage upload failed, falling back to embedded format:", uploadError);
     } catch (err) {
-        console.error("Unexpected prescription upload error:", err);
-        return null;
+        console.warn("Unexpected prescription upload error, falling back:", err);
     }
+
+    // 2. Reliable Fallback: Embed as compressed Data URL so the order always succeeds
+    try {
+        const dataUrl = await fileToDataUrl(file);
+        if (dataUrl) return dataUrl;
+    } catch (fallbackErr) {
+        console.error("Base64 fallback error:", fallbackErr);
+    }
+
+    return null;
 }
 
 const MAX_RX_FILES = 5;
@@ -1300,82 +1354,152 @@ function addToCart(productId) {
             nameAr: product.nameAr,
             price: product.price,
             icon: product.icon,
+            imageUrl: product.imageUrl || product.image_url || '',
             quantity: 1
         });
     }
 
     updateCartUI();
-    showToast(`تمت إضافة ${product.nameAr} إلى قائمة طلباتك`, "success");
+    showToast(`تمت إضافة "${product.nameAr}" لسلة المشتريات`, "success");
+}
+
+function setCartDeliveryMethod(method) {
+    state.cartDeliveryMethod = method; // 'delivery' or 'pickup'
+    const delBtn = document.getElementById("cartMethodDelivery");
+    const pickBtn = document.getElementById("cartMethodPickup");
+    const delSec = document.getElementById("cartDeliveryOnlySection");
+    const branchLabel = document.getElementById("cartBranchLabel");
+
+    if (delBtn) delBtn.classList.toggle("active", method === "delivery");
+    if (pickBtn) pickBtn.classList.toggle("active", method === "pickup");
+    if (delSec) delSec.style.display = method === "delivery" ? "flex" : "none";
+    if (branchLabel) {
+        branchLabel.textContent = method === "delivery"
+            ? "اختر الفرع الأقرب لتوصيل طلبك"
+            : "اختر الفرع للاستلام من الصيدلية";
+    }
+
+    updateCartUI();
 }
 
 function updateCartUI() {
     const badge = document.getElementById("cartCountBadge");
     const cartList = document.getElementById("cartDrawerItems");
-    const cartTotalPrice = document.getElementById("cartTotalPrice");
+    const banner = document.getElementById("cartFreeDeliveryBanner");
+    const noticeEl = document.getElementById("cartFreeDeliveryNotice");
+    const percentEl = document.getElementById("cartFreeDeliveryPercent");
+    const barFill = document.getElementById("cartProgressBarFill");
+    const emptyState = document.getElementById("cartEmptyState");
+    const checkoutForm = document.getElementById("cartCheckoutForm");
+    const footer = document.getElementById("cartDrawerFooter");
+
+    const summarySubtotal = document.getElementById("cartSummarySubtotal");
+    const summaryDeliveryFee = document.getElementById("cartSummaryDeliveryFee");
+    const summaryGrandTotal = document.getElementById("cartSummaryGrandTotal");
 
     const totalCount = state.cart.reduce((sum, item) => sum + item.quantity, 0);
     const totalPrice = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     if (badge) badge.textContent = totalCount;
-    if (cartTotalPrice) cartTotalPrice.textContent = `${totalPrice.toFixed(2)} ج.م`;
 
-    // Update delivery fee info
-    const deliveryFeeRow = document.getElementById("cartDeliveryFeeRow");
-    const deliveryFeeValue = document.getElementById("cartDeliveryFeeValue");
-    const freeDeliveryRow = document.getElementById("cartFreeDeliveryRow");
-    const freeDeliveryThreshold = document.getElementById("cartFreeDeliveryThreshold");
+    // Delivery method state (default delivery)
+    const deliveryMethod = state.cartDeliveryMethod || "delivery";
 
-    if (deliveryFeeRow && deliveryFeeValue) {
-        if (totalPrice > 0) {
-            const isFreeDelivery = FREE_DELIVERY_THRESHOLD > 0 && totalPrice >= FREE_DELIVERY_THRESHOLD;
-            deliveryFeeValue.textContent = isFreeDelivery ? "مجاني" : `${DELIVERY_FEE.toFixed(2)} ج.م`;
-            deliveryFeeValue.style.color = isFreeDelivery ? "var(--success, #16a34a)" : "";
-            deliveryFeeRow.style.display = "flex";
-        } else {
-            deliveryFeeRow.style.display = "none";
-        }
-    }
-
-    if (freeDeliveryRow && freeDeliveryThreshold) {
-        if (FREE_DELIVERY_THRESHOLD > 0 && totalPrice > 0 && totalPrice < FREE_DELIVERY_THRESHOLD) {
-            const remaining = (FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(2);
-            freeDeliveryThreshold.textContent = `${FREE_DELIVERY_THRESHOLD.toFixed(2)} ج.م`;
-            freeDeliveryRow.querySelector("span:first-child").innerHTML = `<i class="fa-solid fa-truck-fast"></i> أضف ${remaining} ج.م للتوصيل المجاني`;
-            freeDeliveryRow.style.display = "flex";
-        } else if (totalPrice > 0 && FREE_DELIVERY_THRESHOLD > 0 && totalPrice >= FREE_DELIVERY_THRESHOLD) {
-            freeDeliveryRow.querySelector("span:first-child").innerHTML = `<i class="fa-solid fa-truck-fast"></i> مبروك! طلبك مؤهل للتوصيل المجاني`;
-            freeDeliveryThreshold.textContent = "";
-            freeDeliveryRow.style.display = "flex";
-        } else {
-            freeDeliveryRow.style.display = "none";
-        }
-    }
-
-    if (!cartList) return;
-
+    // Empty vs Populated State
     if (state.cart.length === 0) {
-        cartList.innerHTML = `
-            <div style="text-align: center; padding: 3rem 1rem; color: #9A8B7E;">
-                <i class="fa-solid fa-basket-shopping" style="font-size: 3rem; margin-bottom: 1rem; color: #CBD5E1;"></i>
-                <p>قائمة الطلبات فارغة حالياً</p>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="toggleCartDrawer(); switchSection('products');">تصفح الأدوية والتجميل</button>
-            </div>
-        `;
+        if (banner) banner.style.display = "none";
+        if (cartList) cartList.style.display = "none";
+        if (checkoutForm) checkoutForm.style.display = "none";
+        if (footer) footer.style.display = "none";
+        if (emptyState) emptyState.style.display = "block";
+        return;
+    }
+
+    if (emptyState) emptyState.style.display = "none";
+    if (banner) banner.style.display = "block";
+    if (cartList) cartList.style.display = "flex";
+    if (checkoutForm) checkoutForm.style.display = "flex";
+    if (footer) footer.style.display = "block";
+
+    // Free Delivery Progress Banner Calculation
+    if (noticeEl && percentEl && barFill) {
+        if (FREE_DELIVERY_THRESHOLD > 0) {
+            const pct = Math.min(100, Math.round((totalPrice / FREE_DELIVERY_THRESHOLD) * 100));
+            barFill.style.width = `${pct}%`;
+            percentEl.textContent = `${pct}%`;
+
+            if (totalPrice < FREE_DELIVERY_THRESHOLD) {
+                const remaining = (FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(0);
+                noticeEl.textContent = `أضف منتجات بقيمة ${remaining} ج.م للحصول على توصيل مجاني!`;
+                barFill.style.background = "linear-gradient(90deg, var(--accent-gold), #B8860B)";
+            } else {
+                noticeEl.textContent = `🎉 مبروك! طلبك مؤهل للتوصيل المجاني!`;
+                percentEl.textContent = `100%`;
+                barFill.style.background = "var(--success, #16a34a)";
+            }
+        } else {
+            noticeEl.textContent = `🎉 توصيل مجاني على جميع الطلبات!`;
+            percentEl.textContent = `100%`;
+            barFill.style.width = `100%`;
+            barFill.style.background = "var(--success, #16a34a)";
+        }
+    }
+
+    // Render Cart Items
+    if (cartList) {
+        cartList.innerHTML = state.cart.map(item => {
+            const imageHtml = item.imageUrl
+                ? `<img src="${escHtml(item.imageUrl)}" alt="${escHtml(item.nameAr)}" onerror="this.onerror=null;this.parentElement.innerHTML='<i class=\\'fa-solid fa-pills\\'></i>';">`
+                : `<i class="${item.icon || 'fa-solid fa-pills'}"></i>`;
+
+            return `
+                <div class="cart-item-card">
+                    <div class="cart-item-thumb">
+                        ${imageHtml}
+                    </div>
+                    <div class="cart-item-info">
+                        <h4 class="cart-item-title">${escHtml(item.nameAr)}</h4>
+                        <div class="cart-item-price">${(item.price * item.quantity).toFixed(2)} ج.م</div>
+                        <div class="cart-item-bottom-row">
+                            <button type="button" class="cart-item-remove-btn" onclick="removeItemFromCart('${escHtml(item.id)}')" title="حذف من السلة">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                            <div class="cart-qty-pill">
+                                <button type="button" class="qty-btn" onclick="updateItemQuantity('${escHtml(item.id)}', 1)" aria-label="زيادة">+</button>
+                                <span class="qty-value">${item.quantity}</span>
+                                <button type="button" class="qty-btn" onclick="updateItemQuantity('${escHtml(item.id)}', -1)" aria-label="تقليل">-</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    // Pricing Breakdown in Footer
+    if (summarySubtotal) {
+        summarySubtotal.textContent = `${totalPrice.toFixed(2)} ج.م`;
+    }
+
+    let computedDeliveryFee = 0;
+    if (deliveryMethod === "pickup") {
+        if (summaryDeliveryFee) {
+            summaryDeliveryFee.textContent = "استلام مجاني";
+            summaryDeliveryFee.style.color = "var(--success, #16a34a)";
+        }
+        computedDeliveryFee = 0;
     } else {
-        cartList.innerHTML = state.cart.map(item => `
-            <div class="cart-item">
-                <div class="cart-item-details">
-                    <h5>${escHtml(item.nameAr)}</h5>
-                    <div class="cart-item-price">${(item.price * item.quantity).toFixed(2)} ج.م (${item.price.toFixed(2)} ج.م للواحد)</div>
-                </div>
-                <div class="cart-item-actions">
-                    <button class="btn-qty" onclick="updateItemQuantity('${escHtml(item.id)}', -1)">-</button>
-                    <span style="font-weight: 700; min-width: 20px; text-align: center;">${item.quantity}</span>
-                    <button class="btn-qty" onclick="updateItemQuantity('${escHtml(item.id)}', 1)">+</button>
-                    <button class="btn-qty" style="color: #EF4444;" onclick="removeItemFromCart('${escHtml(item.id)}')" title="حذف"><i class="fa-solid fa-trash"></i></button>
-                </div>
-            </div>
-        `).join("");
+        const isFree = FREE_DELIVERY_THRESHOLD > 0 && totalPrice >= FREE_DELIVERY_THRESHOLD;
+        computedDeliveryFee = isFree ? 0 : DELIVERY_FEE;
+        if (summaryDeliveryFee) {
+            summaryDeliveryFee.textContent = isFree ? "مجاني" : `${DELIVERY_FEE.toFixed(2)} ج.م`;
+            summaryDeliveryFee.style.color = isFree ? "var(--success, #16a34a)" : "";
+        }
+    }
+
+    if (summaryGrandTotal) {
+        const grandTotal = totalPrice + computedDeliveryFee;
+        summaryGrandTotal.textContent = `${grandTotal.toFixed(2)} ج.م`;
     }
 }
 
@@ -1400,24 +1524,183 @@ function toggleCartDrawer() {
     const drawer = document.getElementById("cartDrawer");
     if (drawer) {
         drawer.classList.toggle("active");
+        if (drawer.classList.contains("active")) {
+            updateCartUI();
+        }
     }
 }
 
-function checkoutFromCart() {
-    toggleCartDrawer();
-    switchSection("products");
+async function handleCartOrderSubmit(event) {
+    if (event) event.preventDefault();
 
-    // Populate order textarea with cart items
-    const medicineInput = document.getElementById("orderMedicineNames");
-    if (medicineInput && state.cart.length > 0) {
-        const orderSummary = state.cart.map(item => `${item.nameAr} (العدد: ${item.quantity})`).join(" + ");
-        medicineInput.value = orderSummary;
+    if (!state.cart || state.cart.length === 0) {
+        showToast("سلة المشتريات فارغة! يرجى إضافة منتجات أولاً", "error");
+        return;
     }
 
-    // Scroll smoothly to the booking form
-    const bookingForm = document.getElementById("bookingFormContainer");
-    if (bookingForm) {
-        bookingForm.scrollIntoView({ behavior: "smooth" });
+    const name = document.getElementById("cartCustomerName")?.value.trim() || "";
+    const phone = document.getElementById("cartCustomerPhone")?.value.trim() || "";
+    const branchSelectEl = document.getElementById("cartOrderBranch");
+    const selectedBranchId = branchSelectEl?.value || "";
+    const branchName = branchSelectEl?.options[branchSelectEl?.selectedIndex]?.text || "فرع الصيدلية";
+
+    const deliveryMethod = state.cartDeliveryMethod || "delivery";
+    const address = document.getElementById("cartOrderAddress")?.value.trim() || "";
+    const gpsLink = document.getElementById("cartGpsCoordinates")?.value.trim() || "";
+    const notes = document.getElementById("cartOrderNotes")?.value.trim() || "";
+
+    // Validation
+    if (!name) {
+        showToast("يرجى إدخال اسم العميل بالكامل", "error");
+        document.getElementById("cartCustomerName")?.focus();
+        return;
+    }
+
+    const phoneRegex = /^01[0125][0-9]{8}$/;
+    if (!phoneRegex.test(phone)) {
+        showToast("يرجى إدخال رقم هاتف مصري صحيح يبدأ بـ 01 ومكون من 11 رقماً", "error");
+        document.getElementById("cartCustomerPhone")?.focus();
+        return;
+    }
+
+    if (!selectedBranchId) {
+        showToast("يرجى اختيار الفرع الأقرب", "error");
+        return;
+    }
+
+    if (deliveryMethod === "delivery" && !address && !gpsLink) {
+        showToast("يرجى إدخال تفاصيل العنوان أو تحديد الموقع عبر GPS", "error");
+        document.getElementById("cartOrderAddress")?.focus();
+        return;
+    }
+
+    let deliveryText = "";
+    let addressText = "";
+
+    if (deliveryMethod === "delivery") {
+        deliveryText = `توصيل للمنزل - ${branchName}`;
+        addressText = `الفرع الأقرب: ${branchName}\nتفاصيل العنوان: ${address || 'محدد عبر GPS'}${gpsLink ? `\nرابط GPS: ${gpsLink}` : ''}`;
+    } else {
+        deliveryText = `استلام من الصيدلية - ${branchName}`;
+        addressText = `استلام من الفرع: ${branchName}`;
+    }
+
+    const medicationsSummary = state.cart.map(item => `${item.nameAr} (العدد: ${item.quantity})`).join(" + ");
+
+    const submitBtn = document.getElementById("btnCartSubmit");
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> جاري إرسال الطلب...`;
+    }
+
+    try {
+        const cartItems = state.cart.map(item => ({
+            product_id: item.id,
+            quantity: item.quantity
+        }));
+
+        const { data: orderResult, error } = await supabaseClient.rpc(
+            "create_order",
+            {
+                p_customer_name: name,
+                p_phone: phone,
+                p_order_type: deliveryMethod === "delivery" ? "delivery" : "pickup",
+                p_branch_id: selectedBranchId,
+                p_address: addressText,
+                p_notes: notes,
+                p_prescription_url: null,
+                p_medications_text: medicationsSummary,
+                p_items: cartItems
+            }
+        );
+
+        if (error) {
+            console.error("Cart order submission error:", error);
+            showToast("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.", "error");
+            return;
+        }
+
+        const orderRow = Array.isArray(orderResult) ? orderResult[0] : orderResult;
+        const trackingCode = orderRow.tracking_code;
+        const subtotal = Number(orderRow.subtotal);
+        const deliveryFeeVal = Number(orderRow.delivery_fee);
+
+        // Populate order confirmation modal
+        const trNumEl = document.getElementById("successTrackingNumber");
+        if (trNumEl) trNumEl.textContent = trackingCode;
+        const pNameEl = document.getElementById("successPatientName");
+        if (pNameEl) pNameEl.textContent = name;
+        const phoneEl = document.getElementById("successPhone");
+        if (phoneEl) phoneEl.textContent = phone;
+        const delTypeEl = document.getElementById("successDeliveryType");
+        if (delTypeEl) delTypeEl.textContent = deliveryText;
+
+        const subtotalRow = document.getElementById("successSubtotalRow");
+        const subtotalEl = document.getElementById("successSubtotal");
+        if (subtotalRow && subtotalEl) {
+            subtotalEl.textContent = `${subtotal.toFixed(2)} ج.م`;
+            subtotalRow.style.display = subtotal > 0 ? "flex" : "none";
+        }
+
+        const deliveryFeeRowEl = document.getElementById("successDeliveryFeeRow");
+        const deliveryFeeEl = document.getElementById("successDeliveryFee");
+        if (deliveryFeeRowEl && deliveryFeeEl) {
+            if (deliveryMethod === "delivery") {
+                deliveryFeeEl.textContent = deliveryFeeVal === 0 ? "0.00 ج.م (توصيل مجاني)" : `${deliveryFeeVal.toFixed(2)} ج.م`;
+                deliveryFeeEl.style.color = deliveryFeeVal === 0 ? "#16a34a" : "";
+                deliveryFeeRowEl.style.display = "flex";
+            } else {
+                deliveryFeeRowEl.style.display = "none";
+            }
+        }
+
+        const totalRow = document.getElementById("successTotalRow");
+        const totalEl = document.getElementById("successOrderTotal");
+        if (totalRow && totalEl) {
+            const finalTotal = subtotal + (deliveryMethod === "delivery" ? deliveryFeeVal : 0);
+            totalEl.textContent = `${finalTotal.toFixed(2)} ج.م`;
+            totalRow.style.display = "flex";
+        }
+
+        const estimatedTimeEl = document.getElementById("successEstimatedTime");
+        if (estimatedTimeEl && DELIVERY_ESTIMATED_TIME) {
+            estimatedTimeEl.textContent = `خلال ${DELIVERY_ESTIMATED_TIME}`;
+        }
+
+        // Close Drawer
+        toggleCartDrawer();
+
+        // Open Success Modal
+        const successModal = document.getElementById("orderSuccessModal");
+        if (successModal) {
+            successModal.classList.add("active");
+        }
+
+        // Reset cart form fields
+        const addrField = document.getElementById("cartOrderAddress");
+        if (addrField) addrField.value = "";
+        const notesField = document.getElementById("cartOrderNotes");
+        if (notesField) notesField.value = "";
+        const gpsField = document.getElementById("cartGpsCoordinates");
+        if (gpsField) gpsField.value = "";
+        const locStat = document.getElementById("cartLocationStatus");
+        if (locStat) { locStat.textContent = ""; locStat.style.display = "none"; }
+
+        // Clear cart
+        state.cart = [];
+        updateCartUI();
+
+        showToast(`تم إرسال طلبك بنجاح! رقم التتبع: ${trackingCode}`, "success");
+    } catch (err) {
+        console.error("Cart checkout error:", err);
+        showToast("حدث خطأ غير متوقع أثناء إرسال الطلب", "error");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+        }
     }
 }
 
@@ -1427,7 +1710,8 @@ function checkoutFromCart() {
 async function loadDeliveryBranchOptions() {
     const selects = [
         document.getElementById("orderDeliveryBranch"),
-        document.getElementById("modalDeliveryBranch")
+        document.getElementById("modalDeliveryBranch"),
+        document.getElementById("cartOrderBranch")
     ].filter(Boolean);
 
     if (selects.length === 0) return;
@@ -1446,9 +1730,17 @@ async function loadDeliveryBranchOptions() {
             .join("");
 
         selects.forEach(select => {
-            select.innerHTML =
-                `<option value="" disabled selected>-- اختر الفرع الأقرب لعنوانك --</option>` +
-                optionsHtml;
+            const isCart = select.id === "cartOrderBranch";
+            if (isCart) {
+                select.innerHTML = optionsHtml;
+                if (branches && branches[0]) {
+                    select.value = branches[0].id;
+                }
+            } else {
+                select.innerHTML =
+                    `<option value="" disabled selected>-- اختر الفرع الأقرب لعنوانك --</option>` +
+                    optionsHtml;
+            }
         });
     } catch (err) {
         console.error("Failed to load branches for delivery selects:", err);
@@ -1593,15 +1885,17 @@ async function handleMedicineOrderSubmit(event) {
 
     if (selectedRxFiles.length) {
         const { urls, failedNames } = await uploadPrescriptionFiles(selectedRxFiles);
-        if (failedNames.length) {
+        if (urls.length) {
+            prescriptionUrl = buildPrescriptionReference(urls);
+        }
+        if (failedNames.length && !urls.length) {
             showToast(
-                `تعذر رفع بعض الملفات (${failedNames.join("، ")}). لم يتم إنشاء الطلب، حاول مرة أخرى.`,
+                `تعذر معالجة بعض الملفات (${failedNames.join("، ")}). حاول مرة أخرى.`,
                 "error"
             );
             return;
         }
-        prescriptionUrl = buildPrescriptionReference(urls);
-        }
+    }
 
         // Cart line items sent as {product_id, quantity} only — no prices.
         // The database computes subtotal from the real, current product
@@ -1809,13 +2103,25 @@ function toggleModalDeliveryLocation(isDelivery) {
     }
 }
 
-function detectUserLocation(context = 'modal') {
-    const statusEl = document.getElementById(context === 'modal' ? 'modalLocationStatus' : 'mainLocationStatus');
-    const gpsInput = document.getElementById(context === 'modal' ? 'modalGpsCoordinates' : 'mainGpsCoordinates');
-    const addressInput = document.getElementById(context === 'modal' ? 'modalAddressDetails' : 'orderCity');
+function detectUserLocation(context = 'cart') {
+    let statusEl, gpsInput, addressInput;
+    if (context === 'cart') {
+        statusEl = document.getElementById('cartLocationStatus');
+        gpsInput = document.getElementById('cartGpsCoordinates');
+        addressInput = document.getElementById('cartOrderAddress');
+    } else if (context === 'modal') {
+        statusEl = document.getElementById('modalLocationStatus');
+        gpsInput = document.getElementById('modalGpsCoordinates');
+        addressInput = document.getElementById('modalAddressDetails');
+    } else {
+        statusEl = document.getElementById('mainLocationStatus');
+        gpsInput = document.getElementById('mainGpsCoordinates');
+        addressInput = document.getElementById('orderCity');
+    }
 
     if (!navigator.geolocation) {
         if (statusEl) {
+            statusEl.style.display = "flex";
             statusEl.className = "location-status-badge error";
             statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> المتصفح لا يدعم تحديد الموقع';
         }
@@ -1824,6 +2130,7 @@ function detectUserLocation(context = 'modal') {
     }
 
     if (statusEl) {
+        statusEl.style.display = "flex";
         statusEl.className = "location-status-badge loading";
         statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التقاط إحداثيات موقعك بدقة...';
     }
@@ -1838,6 +2145,7 @@ function detectUserLocation(context = 'modal') {
             if (gpsInput) gpsInput.value = mapsUrl;
 
             if (statusEl) {
+                statusEl.style.display = "flex";
                 statusEl.className = "location-status-badge success";
                 statusEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> تم تحديد موقعك بدقة (دقة: ${accuracy}م) <a href="${mapsUrl}" target="_blank" style="text-decoration: underline; color: #15803D; margin-right: 4px;">عرض</a>`;
             }
@@ -1881,7 +2189,7 @@ async function handleQuickRxModalSubmit(event) {
     const phone = document.getElementById("modalRxPhone").value.trim();
 
     // Medicines / prescription text
-    const medicines = document.getElementById("modalRxText").value.trim();
+    let medicines = document.getElementById("modalRxText")?.value.trim() || "";
 
     // Delivery method
     const methodElement = document.querySelector(
@@ -1959,6 +2267,14 @@ async function handleQuickRxModalSubmit(event) {
         Array.from(fileInput?.files || []).slice(0, MAX_RX_FILES);
     if (!isPrescriptionFileSetAllowed(selectedFiles)) return;
 
+    if (!medicines && !selectedFiles.length) {
+        showToast("يرجى كتابة أسماء الأدوية المطلوبة أو إرفاق صورة الروشتة", "error");
+        return;
+    }
+    if (!medicines && selectedFiles.length) {
+        medicines = "طلب وصرف روشتة مرفقة";
+    }
+
     // Disable submit button
     const submitButton =
         event.target.querySelector('button[type="submit"]');
@@ -1981,14 +2297,16 @@ async function handleQuickRxModalSubmit(event) {
 
         if (selectedFiles.length) {
             const { urls, failedNames } = await uploadPrescriptionFiles(selectedFiles);
-            if (failedNames.length) {
+            if (urls.length) {
+                prescriptionUrl = buildPrescriptionReference(urls);
+            }
+            if (failedNames.length && !urls.length) {
                 showToast(
-                    `تعذر رفع بعض الملفات (${failedNames.join("، ")}). لم يتم إنشاء الطلب، حاول مرة أخرى.`,
+                    `تعذر معالجة بعض الملفات (${failedNames.join("، ")}). حاول مرة أخرى.`,
                     "error"
                 );
                 return;
             }
-            prescriptionUrl = buildPrescriptionReference(urls);
         }
 
         // This quick-order flow has no priced cart items (empty items

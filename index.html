@@ -21,7 +21,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 
     <!-- Custom Stylesheet -->
-    <link rel="stylesheet" href="style.css?v=20260928-3">
+    <link rel="stylesheet" href="style.css?v=20261020-1">
 </head>
 
 <body>
@@ -444,203 +444,12 @@
                 <div class="empty-products-state" id="emptyProductsState" style="display: none;">
                     <i class="fa-solid fa-box-open"></i>
                     <h3>لم نعثر على منتجات مطابقة لبحثك</h3>
-                    <p>يمكنك كتابة اسم الدواء في نموذج حجز الأدوية وسيقوم فريق الصيدلية بتوفيره لك فوراً.</p>
+                    <p>يمكنك طلب أي دواء غير موجود وسيقوم فريق الصيدلية بتوفيره لك فوراً عبر خدمة الروشتة السريعة.</p>
                     <button class="btn btn-primary" onclick="openPrescriptionModal()">طلب دواء غير موجود</button>
                 </div>
 
                 <!-- Catalog Pagination Controls -->
                 <div id="customerProductsPagination" class="customer-catalog-pagination"></div>
-
-                <!-- Comprehensive Medicine Booking & Delivery Form Section -->
-                <div class="medicine-booking-card" id="bookingFormContainer">
-                    <div class="booking-card-header">
-                        <div class="badge-tag">خدمة التوصيل والاستلام المباشر</div>
-                        <h3><i class="fa-solid fa-prescription-bottle-medical"></i> نموذج حجز وطلب الأدوية والروشتات
-                        </h3>
-                        <p>سواء كان لديك علاج محدد أو ترغب في صرف روشتة كاملة، املأ البيانات التالية وسيتواصل معك
-                            الصيدلي فوراً.</p>
-                    </div>
-
-                    <form id="medicineOrderForm" onsubmit="handleMedicineOrderSubmit(event)">
-                        <div class="form-grid">
-                            <!-- Field 1: Medicine Name or Prescription -->
-                            <div class="form-group col-12">
-                                <label for="orderMedicineNames">
-                                    <i class="fa-solid fa-pen-to-square"></i> أسماء الأدوية أو المستحضرات المطلوبة <span
-                                        class="required">*</span>
-                                </label>
-                                <textarea id="orderMedicineNames" rows="3"
-                                    placeholder="اكتب هنا أسماء الأدوية والتركيزات المطلوبة أو ملاحظاتك (مثال: بنادول إكسترا، كونكور 5 مجم، غسول سيرافيه...)"
-                                    required></textarea>
-                            </div>
-
-                            <!-- Field 2: Prescription Upload Simulation -->
-                            <div class="form-group col-12">
-                                <label>
-                                    <i class="fa-solid fa-cloud-arrow-up"></i> أو ارفع صورة الروشتة الطبية (اختياري)
-                                </label>
-                                <div class="prescription-upload-box" id="rxUploadBox">
-                                    <input type="file" id="rxFileInput" accept="image/*,.pdf" multiple
-                                        onchange="handleFileSelect(event)">
-                                    <div class="upload-dropzone-content">
-                                        <i class="fa-solid fa-image"></i>
-                                        <p id="rxFileLabel">اضغط هنا لرفع صورة الروشتة أو اسحب الملف</p>
-                                        <span>يدعم صور JPG, PNG أو ملفات PDF — حتى 5 ملفات (Ctrl لاختيار أكثر)</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Field 3: Patient Name -->
-                            <div class="form-group col-6">
-                                <label for="orderPatientName">
-                                    <i class="fa-solid fa-user"></i> اسم المريض / العميل بالكامل <span
-                                        class="required">*</span>
-                                </label>
-                                <input type="text" id="orderPatientName" placeholder="الاسم ثلاثي" required>
-                            </div>
-
-                            <!-- Field 4: Egyptian Phone Number -->
-                            <div class="form-group col-6">
-                                <label for="orderPhone">
-                                    <i class="fa-solid fa-phone"></i> رقم الهاتف المحمول (مصر) <span
-                                        class="required">*</span>
-                                </label>
-                                <input type="tel" id="orderPhone" placeholder="01xxxxxxxxx" pattern="^01[0125][0-9]{8}$"
-                                    title="يرجى إدخال رقم هاتف مصري صحيح يبدأ بـ 010 أو 011 أو 012 أو 015 ومكون من 11 رقماً"
-                                    required>
-                                <small class="field-hint">مثال: 01012345678 (11 رقماً)</small>
-                            </div>
-
-                            <!-- Field 5: Delivery Method Selection (Toggle) -->
-                            <div class="form-group col-12">
-                                <label class="label-bold">
-                                    <i class="fa-solid fa-truck-ramp-box"></i> طريقة استلام الطلب <span
-                                        class="required">*</span>
-                                </label>
-                                <div class="delivery-toggle-container">
-                                    <label class="toggle-option">
-                                        <input type="radio" name="deliveryMethod" value="pickup" checked
-                                            onchange="toggleDeliveryFields(false)">
-                                        <div class="toggle-card">
-                                            <div class="toggle-icon"><i class="fa-solid fa-store"></i></div>
-                                            <div class="toggle-text">
-                                                <strong>الاستلام من الصيدلية</strong>
-                                                <span>تجهيز الطلب للاستلام الفوري من أقرب فرع</span>
-                                            </div>
-                                        </div>
-                                    </label>
-
-                                    <label class="toggle-option">
-                                        <input type="radio" name="deliveryMethod" value="delivery"
-                                            onchange="toggleDeliveryFields(true)">
-                                        <div class="toggle-card">
-                                            <div class="toggle-icon"><i class="fa-solid fa-house-chimney-medical"></i>
-                                            </div>
-                                            <div class="toggle-text">
-                                                <strong>توصيل لباب المنزل</strong>
-                                                <span>توصيل سريع لعنوانك </span>
-                                            </div>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Pickup Branch Selector (Shown when Pickup selected) -->
-                            <div class="form-group col-12" id="branchSelectorGroup">
-                                <label for="orderBranch">
-                                    <i class="fa-solid fa-location-dot"></i> اختر فرع صيدلية د.مصطفى فتحي حامد للاستلام منه <span
-                                        class="required">*</span>
-                                </label>
-                                <select id="orderBranch">
-                                    <option value="88df6ef9-277b-4e9b-ab99-14c0cadd9503">فرع طناح - المنصورة - الدقهلية</option>
-                                    <option value="f6644e05-4027-4a68-b472-4d681bc7459c">فرع كفر طناح - المنصورة - الدقهلية</option>
-                                </select>
-                            </div>
-
-                            <!-- Dynamic Home Delivery Address Fields (Shown when Delivery selected) -->
-                            <div class="delivery-address-wrapper col-12" id="deliveryAddressWrapper"
-                                style="display: none;">
-                                <div class="gps-main-row">
-                                    <button type="button" class="btn btn-gps" id="btnGetMainLocation"
-                                        onclick="detectUserLocation('main')">
-                                        <i class="fa-solid fa-location-crosshairs"></i>
-                                        <span>تحديد موقع التوصيل الحالي تلقائياً عبر (GPS)</span>
-                                    </button>
-                                    <span class="location-status-badge" id="mainLocationStatus"></span>
-                                    <input type="hidden" id="mainGpsCoordinates" value="">
-                                </div>
-                                <div class="form-group col-12">
-                                    <label for="orderDeliveryBranch">
-                                        <i class="fa-solid fa-map-pin"></i> اختر أقرب فرع لك <span
-                                            class="required">*</span>
-                                    </label>
-                                    <select id="orderDeliveryBranch">
-                                        <option value="" disabled selected>-- اختر الفرع الأقرب لعنوانك --</option>
-                                    </select>
-                                </div>
-                                <div class="address-fields-grid">
-                                    <div class="form-group col-4">
-                                        <label for="orderGov"><i class="fa-solid fa-city"></i> المحافظة <span
-                                                class="required">*</span></label>
-                                        <select id="orderGov">
-                                            <option value="الدقهلية (المنصورة)">الدقهلية (المنصورة)</option>
-                                            <option value="القاهرة">القاهرة</option>
-                                            <option value="الجيزة">الجيزة</option>
-                                            <option value="الإسكندرية">الإسكندرية</option>
-                                            <option value="القليوبية">القليوبية</option>
-                                            <option value="الشرقية">الشرقية</option>
-                                            <option value="الغربية (طنطا)">الغربية (طنطا)</option>
-                                            <option value="باقي المحافظات">باقي محافظات الجمهورية</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col-4">
-                                        <label for="orderCity"><i class="fa-solid fa-map-pin"></i> المنطقة / القرية <span
-                                                class="required">*</span></label>
-                                        <input type="text" id="orderCity" placeholder="مثال: طناح / كفر طناح">
-                                    </div>
-                                    <div class="form-group col-4">
-                                        <label for="orderStreet"><i class="fa-solid fa-road"></i> اسم الشارع <span
-                                                class="required">*</span></label>
-                                        <input type="text" id="orderStreet" placeholder="اسم الشارع بالتفصيل">
-                                    </div>
-                                    <div class="form-group col-4">
-                                        <label for="orderBuilding"><i class="fa-solid fa-building"></i> رقم العمارة
-                                            <span class="required">*</span></label>
-                                        <input type="text" id="orderBuilding" placeholder="رقم العمارة">
-                                    </div>
-                                    <div class="form-group col-4">
-                                        <label for="orderApartment"><i class="fa-solid fa-door-open"></i> رقم الشقة
-                                            والدور</label>
-                                        <input type="text" id="orderApartment" placeholder="مثال: شقة 4 - الدور 2">
-                                    </div>
-                                    <div class="form-group col-4">
-                                        <label for="orderLandmark"><i class="fa-solid fa-map-signs"></i> علامة
-                                            مميزة</label>
-                                        <input type="text" id="orderLandmark" placeholder="بجوار مسجد / مدرسة...">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Additional Notes -->
-                            <div class="form-group col-12">
-                                <label for="orderNotes"><i class="fa-solid fa-comment-medical"></i> ملاحظات إضافية
-                                    للصيدلي (اختياري)</label>
-                                <input type="text" id="orderNotes"
-                                    placeholder="مثال: يرجى الاتصال قبل التحرك، أو التأكد من توفر بديل معين...">
-                            </div>
-
-                            <!-- Submit Button -->
-                            <div class="form-group col-12 text-center">
-                                <button type="submit" class="btn btn-primary btn-xl">
-                                    <i class="fa-solid fa-paper-plane"></i>
-                                    تأكيد وإرسال طلب الأدوية
-                                </button>
-                                <p class="privacy-notice"><i class="fa-solid fa-lock"></i> جميع بياناتك الصحية تعامل
-                                    بسرية تامة ومحمية بموجب بروتوكولات الأمان الطبي.</p>
-                            </div>
-                        </div>
-                    </form>
-                </div>
             </div>
         </section>
 
@@ -1137,9 +946,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="modalRxText">اسم الدواء أو اكتب تفاصيل طلبك <span class="required">*</span></label>
-                        <textarea id="modalRxText" rows="2" placeholder="اكتب أسماء الأدوية المطلوبة أو ملاحظاتك هنا..."
-                            required></textarea>
+                        <label for="modalRxText">اسم الدواء أو اكتب تفاصيل طلبك (إذا لم ترفق صورة)</label>
+                        <textarea id="modalRxText" rows="2" placeholder="اكتب أسماء الأدوية المطلوبة أو ملاحظاتك هنا..."></textarea>
                     </div>
                     <div class="form-group">
                         <label for="modalRxName">اسمك بالكامل <span class="required">*</span></label>
@@ -1316,34 +1124,141 @@
     <div class="cart-drawer" id="cartDrawer">
         <div class="cart-drawer-overlay" onclick="toggleCartDrawer()"></div>
         <div class="cart-drawer-content">
+            <!-- Drawer Header -->
             <div class="cart-drawer-header">
+                <button type="button" class="btn-close-drawer" onclick="toggleCartDrawer()" aria-label="إغلاق">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
                 <div class="cart-title">
-                    <i class="fa-solid fa-bag-shopping"></i>
-                    <span>قائمة الطلبات المحددة</span>
+                    <span>سلة المشتريات</span>
+                    <i class="fa-solid fa-cart-shopping"></i>
                 </div>
-                <button class="btn-close-drawer" onclick="toggleCartDrawer()" aria-label="إغلاق"><i
-                        class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="cart-drawer-body" id="cartDrawerItems">
-                <!-- Populated dynamically via JS -->
+
+            <!-- Scrollable Body -->
+            <div class="cart-drawer-body">
+                <!-- Free Delivery Progress Card -->
+                <div class="cart-free-delivery-banner" id="cartFreeDeliveryBanner">
+                    <div class="cart-free-delivery-text">
+                        <span id="cartFreeDeliveryNotice">أضف منتجات بقيمة 0 ج.م للحصول على توصيل مجاني!</span>
+                        <span class="cart-free-delivery-percent" id="cartFreeDeliveryPercent">0%</span>
+                    </div>
+                    <div class="cart-progress-bar-bg">
+                        <div class="cart-progress-bar-fill" id="cartProgressBarFill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Empty State (Hidden when cart has items) -->
+                <div class="cart-empty-state" id="cartEmptyState" style="display: none;">
+                    <div class="cart-empty-icon"><i class="fa-solid fa-basket-shopping"></i></div>
+                    <h4>سلة المشتريات فارغة</h4>
+                    <p>لم تقم بإضافة أي أدوية أو مستحضرات بعد</p>
+                    <button type="button" class="btn btn-primary" onclick="toggleCartDrawer(); switchSection('products');">
+                        تصفح الأدوية والتجميل
+                    </button>
+                </div>
+
+                <!-- Cart Items List Container -->
+                <div class="cart-items-list" id="cartDrawerItems">
+                    <!-- Populated dynamically via JS -->
+                </div>
+
+                <!-- Checkout Details Section inside Cart -->
+                <div class="cart-checkout-form" id="cartCheckoutForm">
+                    <!-- Delivery Method Toggle Buttons -->
+                    <div class="cart-form-section-title">
+                        <span>طريقة الاستلام</span>
+                    </div>
+                    <div class="cart-delivery-methods">
+                        <button type="button" class="cart-method-btn active" id="cartMethodDelivery" onclick="setCartDeliveryMethod('delivery')">
+                            <span class="method-icon">🛵</span>
+                            <span>توصيل للمنزل</span>
+                        </button>
+                        <button type="button" class="cart-method-btn" id="cartMethodPickup" onclick="setCartDeliveryMethod('pickup')">
+                            <span class="method-icon">🏪</span>
+                            <span>استلام من الفرع</span>
+                        </button>
+                    </div>
+
+                    <!-- Branch Selector -->
+                    <div class="cart-form-group">
+                        <label for="cartOrderBranch" id="cartBranchLabel">اختر الفرع الأقرب لتوصيل طلبك</label>
+                        <div class="cart-select-wrapper">
+                            <select id="cartOrderBranch" class="cart-form-input cart-form-select">
+                                <option value="f6644e05-4027-4a68-b472-4d681bc7459c" selected>فرع كفر طناح - المنصورة - الدقهلية</option>
+                                <option value="88df6ef9-277b-4e9b-ab99-14c0cadd9503">فرع طناح - المنصورة - الدقهلية</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down select-arrow"></i>
+                        </div>
+                    </div>
+
+                    <!-- Delivery-only fields (GPS & Address) -->
+                    <div class="cart-delivery-only" id="cartDeliveryOnlySection">
+                        <button type="button" class="btn-cart-gps" id="btnCartGps" onclick="detectUserLocation('cart')">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                            <span>تحديد موقعي بدقة عبر GPS</span>
+                        </button>
+                        <div class="location-status-badge" id="cartLocationStatus" style="display: none;"></div>
+                        <input type="hidden" id="cartGpsCoordinates" value="">
+
+                        <!-- Full Address Textarea -->
+                        <div class="cart-form-group">
+                            <label for="cartOrderAddress">
+                                تفاصيل العنوان (المدينة، الحي، اسم الشارع، رقم العقار والشقة) <span class="required-star">*</span>
+                            </label>
+                            <textarea id="cartOrderAddress" class="cart-form-input cart-form-textarea" rows="2"
+                                placeholder="تفاصيل العنوان (المدينة، الحي، اسم الشارع، رقم العقار والشقة)"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Customer Name -->
+                    <div class="cart-form-group">
+                        <label for="cartCustomerName">
+                            اسم العميل بالكامل <span class="required-star">*</span>
+                        </label>
+                        <input type="text" id="cartCustomerName" class="cart-form-input" placeholder="مثال: محمد أحمد علي" required>
+                    </div>
+
+                    <!-- Customer Egyptian Phone -->
+                    <div class="cart-form-group">
+                        <label for="cartCustomerPhone">
+                            رقم هاتف العميل (11 رقم مصري يبدأ بـ 01) <span class="required-star">*</span>
+                        </label>
+                        <input type="tel" id="cartCustomerPhone" class="cart-form-input" placeholder="01012345678" pattern="^01[0125][0-9]{8}$" required>
+                        <small class="cart-input-hint">11 رقماً تبدأ بـ 01</small>
+                    </div>
+
+                    <!-- Additional Notes -->
+                    <div class="cart-form-group">
+                        <label for="cartOrderNotes">ملاحظات إضافية على الطلب (اختياري)</label>
+                        <textarea id="cartOrderNotes" class="cart-form-input cart-form-textarea" rows="2"
+                            placeholder="مثال: يرجى الاتصال قبل التحرك، أو التأكد من توفر بديل معين..."></textarea>
+                    </div>
+                </div>
             </div>
+
+            <!-- Fixed Footer Summary & Action -->
             <div class="cart-drawer-footer" id="cartDrawerFooter">
-                <div class="cart-delivery-info" id="cartDeliveryInfo">
-                    <div class="cart-delivery-row" id="cartDeliveryFeeRow">
-                        <span>رسوم التوصيل:</span>
-                        <span id="cartDeliveryFeeValue">-</span>
+                <div class="cart-summary-breakdown">
+                    <div class="cart-summary-line">
+                        <span class="summary-label">المجموع الفرعي</span>
+                        <span class="summary-val" id="cartSummarySubtotal">0.00 ج.م</span>
                     </div>
-                    <div class="cart-delivery-row cart-free-delivery" id="cartFreeDeliveryRow" style="display: none;">
-                        <span><i class="fa-solid fa-truck-fast"></i> توصيل مجاني للطلبات فوق</span>
-                        <span id="cartFreeDeliveryThreshold">-</span>
+                    <div class="cart-summary-line" id="cartSummaryDeliveryRow">
+                        <span class="summary-label">رسوم التوصيل</span>
+                        <span class="summary-val" id="cartSummaryDeliveryFee">0.00 ج.م</span>
                     </div>
                 </div>
-                <div class="cart-total-row">
-                    <span>الإجمالي التقديري:</span>
-                    <strong id="cartTotalPrice">0.00 ج.م</strong>
+
+                <div class="cart-summary-divider"></div>
+
+                <div class="cart-summary-line grand-total-line">
+                    <span class="grand-label">الإجمالي النهائي</span>
+                    <span class="grand-val" id="cartSummaryGrandTotal">0.00 ج.م</span>
                 </div>
-                <button class="btn btn-primary btn-block btn-lg" onclick="checkoutFromCart()">
-                    <i class="fa-solid fa-truck-fast"></i> إتمام حجز وطلب هذه المنتجات
+
+                <button type="button" class="btn-cart-submit" id="btnCartSubmit" onclick="handleCartOrderSubmit(event)">
+                    <span>تأكيد وإرسال الطلب الآن</span>
                 </button>
             </div>
         </div>
@@ -1367,7 +1282,7 @@
 
     <!-- Custom Script & Supabase Date -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-    <script src="script.js?v=20260928-3"></script>
+    <script src="script.js?v=20261020-1"></script>
 </body>
 
 </html>
