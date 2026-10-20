@@ -2113,7 +2113,7 @@ async function handleQuickRxModalSubmit(event) {
 
         if (totalRow && totalEl) {
             totalEl.textContent = `${modalDeliveryFee.toFixed(2)} ج.م`;
-            totalRow.style.display = "flex";
+            totalRow.style.display = "none";
         }
 
         // Show success modal
